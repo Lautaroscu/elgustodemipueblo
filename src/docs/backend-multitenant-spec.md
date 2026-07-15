@@ -8,37 +8,153 @@ Esta especificación describe la arquitectura para transformar el motor de e-com
 
 Para dar soporte a múltiples comercios (hamburgueserías, pizzerías, farmacias, tiendas de ropa, etc.) con una única instancia del backend, utilizaremos una estrategia de **aislamiento lógico en base de datos compartida** mediante una columna discriminadora (`tenant_id`). Esto mantiene los costos de infraestructura bajos y simplifica el mantenimiento.
 
-### 1.1 Modelo de Datos (Esquema Conceptual)
+### 1.1 Modelo de Datos (Esquema de Base de Datos Profesional)
 
-Cada consulta y operación de escritura debe estar aislada por el `tenant_id`.
+Para un SaaS comercial maduro, el modelo de datos debe prever flexibilidad en el catálogo (variantes/agregados), gestión de repartidores propios, y el modelo de negocio del SaaS (suscripción de los comercios).
+
+Cada consulta y operación de escritura sobre las entidades de negocio debe estar estrictamente aislada por el `tenant_id`. Se recomienda crear índices compuestos que incluyan `(tenant_id, id)` o `(tenant_id, fk_col)` para optimizar búsquedas y asegurar el aislamiento lógico a nivel de base de datos.
 
 ```mermaid
 erDiagram
-    Tenant ||--o{ TenantConfig : "tiene"
+    Tenant ||--o{ TenantConfig : "configura"
+    Tenant ||--o{ TenantSubscription : "paga"
     Tenant ||--o{ Category : "posee"
-    Tenant ||--o{ Product : "vende"
-    Tenant ||--o{ Customer : "registra"
+    Tenant ||--o{ Product : "ofrece"
+    Tenant ||--o{ CustomerTenant : "vincula"
     Tenant ||--o{ Order : "recibe"
+    Tenant ||--o{ Driver : "emplea"
+
+    Customer ||--o{ CustomerTenant : "pertenece"
+    Customer ||--o{ Address : "registra"
     
-    Category ||--o{ Product : "agrupa"
-    Product ||--o{ OrderItem : "incluye"
+    Category ||--o{ Product : "clasifica"
+    Product ||--o{ ModifierGroup : "requiere"
+    ModifierGroup ||--o{ ModifierOption : "ofrece"
+    
     Order ||--o{ OrderItem : "contiene"
-    Order ||--o{ OrderEvent : "registra"
-    Customer ||--o{ Address : "guarda"
+    Order ||--o{ OrderEvent : "historial"
     Order }o--|| Address : "despacha_a"
+    Order }o--|| Driver : "reparte"
+    
+    OrderItem ||--o{ OrderItemModifier : "personaliza"
+    ModifierOption ||--o{ OrderItemModifier : "aplica"
 ```
 
-#### Entidades Clave:
-*   **Tenant (Inquilino):** Identifica el comercio.
-    *   `id` (UUID), `slug` (ej: "el-gusto", "burger-house"), `name`, `status` (ACTIVE, SUSPENDED), `created_at`.
-*   **TenantConfig (Configuración Operativa):**
-    *   `tenant_id` (FK), `costo_envio_base`, `envio_gratis_desde`, `retiro_disponible` (bool), `direccion_local`, `horarios_retiro`, `campos_entrega` (JSON - campos dinámicos activos en checkout), `mercado_pago_token` (encriptado), `coordenadas` (Point - lat/lng del local).
-*   **Product & Category:**
-    *   Aislados por `tenant_id`. Incluyen precio, stock, descripción, imágenes y `prep_minutos` (tiempo estimado de preparación).
-*   **Customer & Address:**
-    *   Clientes identificados por teléfono/email. El cliente es transversal o específico del tenant (se recomienda que sea transversal por número único, pero con direcciones `Address` asociadas a cada `tenant_id` para evitar mezclar zonas de reparto).
-*   **Order, OrderItem & OrderEvent:**
-    *   Contienen el flujo de estados logísticos (`PENDIENTE`, `CONFIRMADO`, `EN_PREPARACION`, `LISTO`, `EN_REPARTO`, `ENTREGADO`, `CANCELADO`) y los tiempos de preparación calculados.
+#### Detalle de Tablas y Atributos Recomendados:
+
+##### 1. Gestión de Tenants y Suscripciones (Core SaaS)
+*   **`tenants`** (Comercios registrados en la plataforma)
+    *   `id` (UUID, PK)
+    *   `slug` (VARCHAR, Unique, Index) — Nombre en URL (ej: `elgusto`, `burgerhouse`).
+    *   `name` (VARCHAR) — Nombre comercial.
+    *   `status` (ENUM: `ACTIVE`, `SUSPENDED`, `TRIAL`)
+    *   `created_at` (TIMESTAMP)
+*   **`tenant_configs`** (Ajustes de cada comercio)
+    *   `tenant_id` (UUID, FK, PK)
+    *   `costo_envio_base` (DECIMAL(10,2))
+    *   `envio_gratis_desde` (DECIMAL(10,2), Nullable)
+    *   `retiro_disponible` (BOOLEAN, Default: true)
+    *   `direccion_local` (VARCHAR)
+    *   `horarios_retiro` (VARCHAR)
+    *   `campos_entrega` (JSONB) — Configuración dinámica de campos obligatorios en checkout.
+    *   `local_coordenadas` (GEOMETRY(Point, 4326), Nullable) — Ubicación GPS del local para calcular radios de entrega.
+    *   `mercado_pago_token` (VARCHAR, Nullable) — Token encriptado para Checkout Pro.
+*   **`tenant_subscriptions`** (Control de facturación de cada comercio)
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK, Index)
+    *   `plan` (ENUM: `BASIC`, `PRO`, `ENTERPRISE`)
+    *   `billing_cycle` (ENUM: `MONTHLY`, `YEARLY`)
+    *   `expires_at` (TIMESTAMP)
+    *   `features` (JSONB) — Banderas para habilitar módulos (ej: bot de IA, repartidores propios).
+
+##### 2. Catálogo Gastronómico y Retail Flexible (Soporta modificadores/variantes)
+*   **`categories`** (Categorías de productos)
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK, Index)
+    *   `name` (VARCHAR)
+    *   `order_index` (INTEGER) — Orden visual en el menú.
+*   **`products`** (Productos a la venta)
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK, Index)
+    *   `category_id` (UUID, FK)
+    *   `name` (VARCHAR)
+    *   `description` (TEXT)
+    *   `price` (DECIMAL(10,2))
+    *   `stock` (INTEGER)
+    *   `prep_minutes` (INTEGER) — Tiempo estándar de preparación.
+    *   `is_active` (BOOLEAN, Default: true)
+*   **`modifier_groups`** (Grupos de agregados/personalización; ej: "Elegí el pan", "Agregados extras")
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK)
+    *   `product_id` (UUID, FK, Index)
+    *   `name` (VARCHAR) — Ej: "Aderezos".
+    *   `min_selectable` (INTEGER) — `0` si es opcional, `1` si es obligatorio.
+    *   `max_selectable` (INTEGER) — Límite de opciones a elegir.
+*   **`modifier_options`** (Opciones dentro de un grupo)
+    *   `id` (UUID, PK)
+    *   `group_id` (UUID, FK, Index)
+    *   `name` (VARCHAR) — Ej: "Cheddar Extra".
+    *   `price_adjustment` (DECIMAL(10,2)) — Costo adicional (ej: `500.00`).
+    *   `in_stock` (BOOLEAN, Default: true)
+
+##### 3. Clientes, Direcciones y Repartidores
+*   **`customers`** (Clientes a nivel de plataforma)
+    *   `id` (UUID, PK)
+    *   `phone` (VARCHAR, Unique, Index) — Identificador principal de cero fricción.
+    *   `email` (VARCHAR, Nullable, Index)
+*   **`customer_tenants`** (Relación inquilino-cliente; historial local)
+    *   `tenant_id` (UUID, FK)
+    *   `customer_id` (UUID, FK)
+    *   `notes` (TEXT, Nullable) — Notas del comercio (ej: "Buen cliente", "Dirección conflictiva").
+    *   `loyalty_points` (INTEGER, Default: 0)
+    *   PRIMARY KEY (`tenant_id`, `customer_id`)
+*   **`addresses`** (Direcciones del cliente)
+    *   `id` (UUID, PK)
+    *   `customer_id` (UUID, FK, Index)
+    *   `etiqueta` (VARCHAR) — Ej: "Casa", "Oficina".
+    *   `resumen` (VARCHAR) — Dirección unificada.
+    *   `datos` (JSONB) — Datos crudos (calle, número, dpto, coordenadas, etc.).
+*   **`drivers`** (Repartidores del comercio)
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK, Index)
+    *   `name` (VARCHAR)
+    *   `phone` (VARCHAR)
+    *   `status` (ENUM: `OFFLINE`, `AVAILABLE`, `BUSY`)
+
+##### 4. Pedidos y Logística Operativa
+*   **`orders`** (Pedidos recibidos)
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK, Index)
+    *   `customer_id` (UUID, FK, Index)
+    *   `address_id` (UUID, FK, Nullable)
+    *   `driver_id` (UUID, FK, Nullable) — Asignación de reparto.
+    *   `codigo` (VARCHAR, Index) — Código amigable legible (ej: `EGMP-8742`).
+    *   `estado` (ENUM: `PENDIENTE`, `CONFIRMADO`, `EN_PREPARACION`, `LISTO`, `EN_REPARTO`, `ENTREGADO`, `CANCELADO`)
+    *   `cuando` (ENUM: `ASAP`, `PROGRAMADO`)
+    *   `fecha_entrega_estimada` (TIMESTAMP) — Timestamp exacto de cuándo debe entregarse.
+    *   `prep_start_time` (TIMESTAMP) — Cuándo debe iniciar la cocina.
+    *   `subtotal` (DECIMAL(10,2)), `descuento` (DECIMAL(10,2)), `costo_envio` (DECIMAL(10,2)), `total` (DECIMAL(10,2))
+    *   `metodo_pago` (ENUM: `EFECTIVO`, `TRANSFERENCIA`, `MERCADO_PAGO`)
+    *   `estado_pago` (ENUM: `PENDIENTE`, `APROBADO`, `RECHAZADO`)
+    *   `observaciones` (TEXT, Nullable)
+    *   `created_at` (TIMESTAMP)
+*   **`order_items`** (Líneas del pedido)
+    *   `id` (UUID, PK)
+    *   `order_id` (UUID, FK, Index)
+    *   `product_id` (UUID, FK)
+    *   `quantity` (INTEGER)
+    *   `price_at_purchase` (DECIMAL(10,2)) — Histórico del precio en ese momento.
+*   **`order_item_modifiers`** (Modificadores seleccionados por el cliente para esa línea)
+    *   `id` (UUID, PK)
+    *   `order_item_id` (UUID, FK, Index)
+    *   `modifier_option_id` (UUID, FK)
+    *   `price_adjustment` (DECIMAL(10,2))
+*   **`order_events`** (Auditoría e historial de cambios de estado logísticos)
+    *   `id` (UUID, PK)
+    *   `order_id` (UUID, FK, Index)
+    *   `estado` (VARCHAR)
+    *   `notes` (TEXT, Nullable)
+    *   `created_at` (TIMESTAMP)
 
 ### 1.2 Resolución del Tenant en FastAPI
 
