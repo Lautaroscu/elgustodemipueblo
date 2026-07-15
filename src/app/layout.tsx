@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Roboto } from "next/font/google";
 import { Fraunces } from "next/font/google";
 import { Toaster } from "sonner";
 import { site } from "@/lib/site";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const roboto = Roboto({
+  variable: "--font-roboto",
+  weight: ["300", "400", "500", "700"],
   subsets: ["latin"],
   display: "swap",
 });
@@ -71,7 +72,7 @@ export default function RootLayout({
   return (
     <html
       lang="es-AR"
-      className={`${geistSans.variable} ${fraunces.variable} h-full`}
+      className={`${roboto.variable} ${fraunces.variable} h-full`}
     >
       <body className="min-h-full flex flex-col">
         {children}
@@ -81,7 +82,7 @@ export default function RootLayout({
           toastOptions={{
             style: {
               borderRadius: "0.75rem",
-              fontFamily: "var(--font-geist-sans)",
+              fontFamily: "var(--font-roboto)",
             },
           }}
         />
