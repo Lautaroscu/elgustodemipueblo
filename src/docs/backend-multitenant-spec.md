@@ -335,3 +335,91 @@ Un agente de IA integrado en WhatsApp funcionaría de la siguiente manera ante u
     *   *Cliente:* "Sí, a esa misma."
     *   *Agente (IA) ejecuta:* `create_order(nombre_cliente="Sofia Gonzalez", telefono_cliente="2281401234", metodo_entrega="ENVIO", direccion_id="addr_999", metodo_pago="MERCADO_PAGO", items=[{"product_id": "cheesecake_id", "cantidad": 2}])`
     *   *Agente responde:* "¡Excelente! Tu pedido **EGMP-8742** ya fue registrado. Para confirmarlo, podés realizar el pago de $9000 (envío incluido) en este enlace de Mercado Pago: [Pagar Pedido](https://link-de-pago...). Una vez abonado, ¡empezamos a prepararlo!"
+
+---
+
+## 4. Autenticación y Seguridad (API Keys)
+
+Para que el servidor MCP y otros agentes se comuniquen de forma segura con la API del backend, implementaremos un sistema de **API Keys asociadas a cada Tenant**.
+
+*   **Tabla `tenant_api_keys`:**
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK, Index)
+    *   `name` (VARCHAR) — Ej: "Bot de WhatsApp Principal".
+    *   `hashed_key` (VARCHAR, Unique) — Hash SHA-256 de la API Key.
+    *   `scopes` (JSONB) — Lista de permisos (ej: `["products:read", "orders:write"]`).
+    *   `expires_at` (TIMESTAMP, Nullable)
+*   **Seguridad:** La API Key real (`sk_live_...`) se muestra una sola vez al comercio en su backoffice. El backend solo almacena el hash.
+*   **Uso:** La API de FastAPI autentica las llamadas usando un esquema de seguridad simple:
+    `Authorization: Bearer sk_live_...`
+
+---
+
+## 5. Webhooks Salientes (Event-Driven Architecture)
+
+Cuando un administrador cambia el estado de un pedido en el panel Kanban (ej: pasa a `LISTO` o `EN_REPARTO`), el backend debe avisar en tiempo real a los canales integrados (el bot de WhatsApp) para que notifiquen al cliente.
+
+*   **Tabla `webhook_subscriptions`:**
+    *   `id` (UUID, PK)
+    *   `tenant_id` (UUID, FK, Index)
+    *   `target_url` (VARCHAR) — URL del webhook receptor (ej: la API de tu bot de WhatsApp).
+    *   `events` (JSONB) — Eventos suscritos (ej: `["order.confirmed", "order.ready", "order.dispatched"]`).
+    *   `secret_token` (VARCHAR) — Secreto para firmar las firmas de cabecera (`X-Webhook-Signature`).
+*   **Cola de Tareas (Celery/FastAPI Background Tasks):** Para no bloquear el hilo principal del panel de administración al cambiar estados, el envío de peticiones POST del webhook se despacha de manera asíncrona con políticas de reintento exponencial en caso de fallo (HTTP 5xx).
+
+---
+
+## 6. Almacenamiento Aislado de Assets (Imágenes/Logos)
+
+Para evitar colisiones de archivos e intrusiones de seguridad entre comercios, los archivos estáticos se almacenarán en subcarpetas aisladas dentro de tu CDN o Storage (Cloudinary/S3):
+
+*   **Esquema de Rutas:**
+    *   Logos de Comercio: `https://cdn.tusistema.com/tenants/{tenant_id}/assets/logo.png`
+    *   Fotos de Productos: `https://cdn.tusistema.com/tenants/{tenant_id}/products/{product_id}/image.jpg`
+*   **Reglas de Acceso en S3/Cloudinary:** Se aplican políticas de IAM o firmas de URL firmadas en la API del backend para subidas directas del comercio a su contenedor.
+
+---
+
+## 7. Estructura de Proyecto FastAPI Recomendada
+
+Para organizar este backend de manera profesional, estructurada y mantenible:
+
+```text
+fastapi-multitenant-backend/
+├── app/
+│   ├── api/
+│   │   ├── v1/
+│   │   │   ├── endpoints/
+│   │   │   │   ├── auth.py
+│   │   │   │   ├── products.py
+│   │   │   │   ├── orders.py
+│   │   │   │   └── webhooks.py      # Recibe callbacks de pagos (MP, etc.)
+│   │   │   └── api.py               # Une todos los routers
+│   │   └── deps.py                  # Dependencias comunes (get_db, get_current_tenant)
+│   ├── core/
+│   │   ├── config.py                # Variables de entorno pydantic-settings
+│   │   ├── security.py              # Encriptación y tokens
+│   │   └── mcp/
+│   │       ├── server.py            # Servidor MCP (Fastapi integration o standalone stdio)
+│   │       └── tools.py             # Implementación de las herramientas MCP
+│   ├── db/
+│   │   ├── base_class.py            # Base de SQLAlchemy con mixin de tenant_id
+│   │   └── session.py               # Generador de sesiones
+│   ├── models/                      # Modelos SQLAlchemy definidos en el punto 1.1
+│   │   ├── tenant.py
+│   │   ├── product.py
+│   │   ├── order.py
+│   │   └── customer.py
+│   ├── schemas/                     # Validación de entrada/salida (Pydantic)
+│   │   ├── product.py
+│   │   ├── order.py
+│   │   └── mcp.py
+│   └── services/                    # Lógica de negocio reusable
+│       ├── pricing.py               # Recalculador de precios (nuestro pricing.ts)
+│       └── scheduling.py            # Motor de tiempos de preparación (scheduling.ts)
+├── prisma/                          # Opcional (si decides usar Prisma Python en lugar de SQLAlchemy)
+├── requirements.txt
+├── docker-compose.yml
+└── main.py                          # Inicializador de la app FastAPI
+```
+
