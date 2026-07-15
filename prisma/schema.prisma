@@ -1,0 +1,301 @@
+// El Gusto de mi Pueblo — esquema de datos
+// Postres artesanales · e-commerce con checkout rápido y multi-pago.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo
+// ---------------------------------------------------------------------------
+
+model Category {
+  id        String    @id @default(cuid())
+  nombre    String
+  slug      String    @unique
+  emoji     String? // ícono corto para chips de filtro
+  orden     Int       @default(0)
+  visible   Boolean   @default(true)
+  productos Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([orden])
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  nombre       String
+  slug         String   @unique
+  descripcion  String
+  ingredientes String? // texto libre, separado por comas
+  precio       Int // en pesos, sin decimales
+  stock        Int      @default(0)
+  prepMinutos  Int      @default(0) // tiempo estimado de preparación
+  destacado    Boolean  @default(false)
+  visible      Boolean  @default(true)
+  orden        Int      @default(0)
+  tags         String[] @default([])
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  imagenes    ProductImage[]
+  orderItems  OrderItem[]
+  promociones PromotionProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([destacado])
+  @@index([visible])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  url       String
+  publicId  String? // id de Cloudinary para borrar/transformar
+  alt       String?
+  orden     Int     @default(0)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// Promociones y cupones
+// ---------------------------------------------------------------------------
+
+enum PromotionType {
+  DOS_POR_UNO // 2x1
+  TRES_POR_DOS // 3x2
+  PORCENTAJE // % de descuento
+  COMBO // precio fijo por combo
+  HAPPY_HOUR // % en franja horaria
+}
+
+model Promotion {
+  id         String        @id @default(cuid())
+  nombre     String
+  tipo       PromotionType
+  valor      Int           @default(0) // % o monto según tipo
+  desde      DateTime?
+  hasta      DateTime?
+  horaInicio Int? // 0-23, para happy hour
+  horaFin    Int?
+  prioridad  Int           @default(0)
+  activo     Boolean       @default(true)
+
+  productos  PromotionProduct[]
+  categorias String[]           @default([]) // categoryIds alcanzados
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activo])
+}
+
+model PromotionProduct {
+  promotionId String
+  productId   String
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, productId])
+}
+
+enum CouponType {
+  FIJO
+  PORCENTAJE
+}
+
+model Coupon {
+  id          String     @id @default(cuid())
+  codigo      String     @unique
+  tipo        CouponType
+  valor       Int
+  montoMinimo Int        @default(0)
+  usosMax     Int? // null = ilimitado
+  usos        Int        @default(0)
+  vence       DateTime?
+  activo      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Pedidos y clientes
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDIENTE
+  CONFIRMADO
+  EN_PREPARACION
+  LISTO // listo para despacho
+  EN_REPARTO
+  ENTREGADO
+  CANCELADO
+}
+
+enum PaymentMethod {
+  MERCADO_PAGO
+  TRANSFERENCIA
+  EFECTIVO
+}
+
+enum PaymentStatus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+  REEMBOLSADO
+}
+
+enum DeliveryMethod {
+  ENVIO
+  RETIRO
+}
+
+enum ScheduleKind {
+  ASAP
+  PROGRAMADO
+}
+
+model Order {
+  id     String      @id @default(cuid())
+  codigo String      @unique
+  estado OrderStatus @default(PENDIENTE)
+
+  // Totales (snapshot, calculados en servidor)
+  subtotal    Int
+  descuento   Int    @default(0)
+  costoEnvio  Int    @default(0)
+  total       Int
+  cuponCodigo String?
+
+  metodoPago     PaymentMethod
+  metodoEntrega  DeliveryMethod
+  estadoPago     PaymentStatus  @default(PENDIENTE)
+  mpPreferenceId String?
+  mpPaymentId    String?
+
+  observaciones String?
+
+  // Logística / post-compra
+  prioridad          Int          @default(0) // prioridad manual
+  cuando             ScheduleKind @default(ASAP)
+  fechaEntrega       DateTime? // hora deseada de entrega (si PROGRAMADO)
+  prepMinutos        Int          @default(0) // suma de prep de los items
+  prepInicioEstimado DateTime? // cuándo empezar a preparar
+  entregaDatos       Json? // snapshot de los campos de entrega del checkout
+
+  addressId String?
+  address   Address? @relation(fields: [addressId], references: [id])
+
+  customerId String
+  customer   Customer     @relation(fields: [customerId], references: [id])
+  items      OrderItem[]
+  eventos    OrderEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([estado])
+  @@index([estadoPago])
+  @@index([createdAt])
+  @@index([customerId])
+  @@index([fechaEntrega])
+}
+
+model OrderEvent {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  estado    OrderStatus
+  nota      String?
+  actor     String? // "admin", "sistema", etc.
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String?
+  nombre    String // snapshot
+  precio    Int // snapshot unitario
+  cantidad  Int
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Customer {
+  id        String  @id @default(cuid())
+  nombre    String
+  telefono  String? @unique // puede faltar si se registró primero con Google
+  email     String? @unique // usado para vincular login con Google
+  googleId  String? @unique
+  imagen    String?
+  direccion String? // legacy: dirección libre de pedidos viejos
+
+  direcciones Address[]
+  pedidos     Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([telefono])
+  @@index([email])
+}
+
+model Address {
+  id             String   @id @default(cuid())
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  etiqueta       String   @default("Casa") // Casa, Trabajo, Otra
+  datos          Json // valores de los campos configurables (calle, número, etc.)
+  resumen        String   @default("") // texto formateado para mostrar
+  lat            Float?
+  lng            Float?
+  esPredeterminada Boolean @default(false)
+  pedidos        Order[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// Configuración y administración
+// ---------------------------------------------------------------------------
+
+model Setting {
+  clave     String   @id
+  valor     Json
+  updatedAt DateTime @updatedAt
+}
+
+enum AdminRole {
+  OWNER
+  STAFF
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  nombre       String
+  email        String    @unique
+  passwordHash String
+  rol          AdminRole @default(STAFF)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

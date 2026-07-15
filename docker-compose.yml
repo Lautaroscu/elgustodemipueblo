@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: egmp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: egmp
+      POSTGRES_PASSWORD: egmp_dev_password
+      POSTGRES_DB: egmp
+    ports:
+      - "5455:5432"
+    volumes:
+      - egmp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U egmp -d egmp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  egmp_pgdata:
