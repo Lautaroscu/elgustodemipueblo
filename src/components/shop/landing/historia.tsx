@@ -25,22 +25,14 @@ export function Historia() {
     <section id="historia" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-20 sm:px-6">
       <div className="grid items-center gap-12 lg:grid-cols-2">
         <Reveal>
-          <div className="relative">
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-[var(--shadow-lift)]">
-              <ProductImage
-                src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=800&q=80"
-                alt="Facundo en su cocina preparando postres"
-                emoji="👨‍🍳"
-                fill
-                sizes="(max-width:1024px) 90vw, 480px"
-              />
-            </div>
-            <div className="absolute -right-3 -top-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-[var(--shadow-lift)]">
-              <p className="font-display text-2xl font-bold text-caramel-deep">
-                +1.300
-              </p>
-              <p className="text-xs text-muted">clientes felices</p>
-            </div>
+          <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-[var(--shadow-lift)]">
+            <ProductImage
+              src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=800&q=80"
+              alt="Facundo en su cocina preparando postres"
+              emoji="👨‍🍳"
+              fill
+              sizes="(max-width:1024px) 90vw, 480px"
+            />
           </div>
         </Reveal>
 
@@ -58,8 +50,8 @@ export function Historia() {
               <p>
                 El Gusto de mi Pueblo nació del sueño de Facundo por compartir
                 los sabores que aprendió de su familia. Lo que empezó como un
-                pedido entre amigos hoy es el postre favorito de cientos de
-                vecinos.
+                pedido entre amigos hoy ya son más de 1.000 clientes que lo
+                eligen.
               </p>
               <p>
                 Creemos que un buen postre se nota: en la calidad de los

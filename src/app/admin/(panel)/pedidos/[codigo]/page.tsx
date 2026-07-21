@@ -5,6 +5,7 @@ import { getOrderByCode } from "@/data/orders";
 import { OrderStatusControls } from "@/components/admin/order-controls";
 import { PaymentBadge } from "@/components/admin/ui";
 import { PAYMENT_METHOD_LABEL } from "@/lib/order-status";
+import { fullAddressLine, type AddressData } from "@/domain/address";
 import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,17 @@ export default async function PedidoDetallePage({
   const { codigo } = await params;
   const order = await getOrderByCode(codigo);
   if (!order) notFound();
+
+  // La dirección vive en el snapshot del pedido / la Address vinculada,
+  // no en el campo legacy `customer.direccion`.
+  const snapshot = (order.entregaDatos ?? null) as unknown as AddressData | null;
+  const direccionEntrega =
+    order.metodoEntrega === "RETIRO"
+      ? "Retiro en el local"
+      : (snapshot && fullAddressLine(snapshot)) ||
+        order.address?.resumen ||
+        order.customer.direccion ||
+        "Sin dirección";
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -122,11 +134,7 @@ export default async function PedidoDetallePage({
               )}
               <li className="flex items-start gap-2">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
-                <span>
-                  {order.metodoEntrega === "ENVIO"
-                    ? order.customer.direccion ?? "Sin dirección"
-                    : "Retiro en el local"}
-                </span>
+                <span>{direccionEntrega}</span>
               </li>
             </ul>
           </section>

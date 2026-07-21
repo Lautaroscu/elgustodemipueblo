@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Roboto } from "next/font/google";
-import { Fraunces } from "next/font/google";
 import { Toaster } from "sonner";
 import { site } from "@/lib/site";
 import "./globals.css";
@@ -8,12 +7,6 @@ import "./globals.css";
 const roboto = Roboto({
   variable: "--font-roboto",
   weight: ["300", "400", "500", "700"],
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
   subsets: ["latin"],
   display: "swap",
 });
@@ -72,7 +65,7 @@ export default function RootLayout({
   return (
     <html
       lang="es-AR"
-      className={`${roboto.variable} ${fraunces.variable} h-full`}
+      className={`${roboto.variable} h-full`}
     >
       <body className="min-h-full flex flex-col">
         {children}

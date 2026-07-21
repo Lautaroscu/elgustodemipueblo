@@ -65,7 +65,7 @@
   --color-danger: var(--danger);
 
   --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-display: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 0.35rem);

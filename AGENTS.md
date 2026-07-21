@@ -18,7 +18,7 @@ Prisma **6** + PostgreSQL, Auth.js v5, Framer Motion, Zustand.
 ## Convenciones del repo
 - **Prisma 6** (no 7): el schema usa `url = env("DATABASE_URL")` clásico.
 - **lucide-react 1.x** removió íconos de marca → Instagram/WhatsApp están en `src/components/shared/icons.tsx`.
-- Fuentes: Geist (sans) + **Fraunces** (display, variable — sin `weight`/`axes` en el loader).
+- Fuentes: **Roboto** única para toda la app (cliente y backoffice). Los tokens `--font-sans` y `--font-display` en `src/app/globals.css` apuntan ambos a Roboto; la clase/utilidad `font-display` sigue existiendo pero ya no cambia la tipografía.
 - Protección de `/admin`: `src/proxy.ts` (convención `proxy`, no `middleware`).
 - Totales/promos/cupones se recalculan **siempre en el servidor** (`src/domain/pricing.ts`, `src/data/orders.ts`). Nunca confiar en el total del cliente.
 - Carrito: Zustand con persistencia (`src/components/shop/cart/cart-store.ts`), guest checkout (sin cuenta de cliente).
