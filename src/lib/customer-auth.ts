@@ -22,5 +22,7 @@ export async function getCustomerSession() {
     nombre: session.user.name ?? "Cliente",
     email: session.user.email ?? null,
     imagen: session.user.image ?? null,
+    phone: session.user.phone ?? null,
+    requiresPhone: session.user.requiresPhone ?? !session.user.phone,
   };
 }

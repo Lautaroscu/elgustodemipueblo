@@ -27,18 +27,27 @@ export const authConfig = {
       if (isAdminArea) return kind === "admin";
       return true;
     },
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
         const u = user as {
           kind?: string;
           rol?: string;
           customerId?: string;
+          phone?: string | null;
+          requiresPhone?: boolean;
         };
         token.kind = u.kind;
         token.rol = u.rol;
         token.customerId = u.customerId;
+        token.phone = u.phone;
+        token.requiresPhone = u.requiresPhone;
         if (user.name) token.name = user.name;
         if (user.image) token.picture = user.image;
+      }
+      if (trigger === "update" && session) {
+        if (session.customerId) token.customerId = session.customerId;
+        if (session.phone !== undefined) token.phone = session.phone;
+        if (session.requiresPhone !== undefined) token.requiresPhone = session.requiresPhone;
       }
       return token;
     },
@@ -47,6 +56,8 @@ export const authConfig = {
         session.user.kind = token.kind as string | undefined;
         session.user.rol = token.rol as string | undefined;
         session.user.customerId = token.customerId as string | undefined;
+        session.user.phone = token.phone as string | null | undefined;
+        session.user.requiresPhone = token.requiresPhone as boolean | undefined;
       }
       return session;
     },

@@ -70,6 +70,8 @@ if (isGoogleConfigured) {
           image: customer.imagen,
           kind: "customer",
           customerId: customer.id,
+          phone: customer.telefono,
+          requiresPhone: !customer.telefono,
         };
       },
     }),

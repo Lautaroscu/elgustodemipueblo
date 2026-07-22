@@ -7,6 +7,8 @@ import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { Logo } from "@/components/shared/logo";
 import { cn } from "@/lib/utils";
 
+import { AuthButton } from "@/components/shop/auth/auth-button";
+
 const links = [
   { href: "/catalogo", label: "Catálogo" },
   { href: "/#historia", label: "Nuestra historia" },
@@ -58,12 +60,15 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <Link
-          href="/catalogo"
-          className="inline-flex h-10 items-center rounded-full bg-caramel px-5 text-sm font-medium text-primary-foreground shadow-[0_6px_20px_-8px_rgba(197,123,44,0.7)] transition-all hover:bg-caramel-deep active:scale-95"
-        >
-          Pedir ahora
-        </Link>
+        <div className="flex items-center gap-3">
+          <AuthButton />
+          <Link
+            href="/catalogo"
+            className="inline-flex h-10 items-center rounded-full bg-caramel px-5 text-sm font-medium text-primary-foreground shadow-[0_6px_20px_-8px_rgba(197,123,44,0.7)] transition-all hover:bg-caramel-deep active:scale-95"
+          >
+            Pedir ahora
+          </Link>
+        </div>
       </div>
     </motion.header>
   );
