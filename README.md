@@ -16,6 +16,9 @@ Prisma · PostgreSQL · Auth.js · Mercado Pago · Cloudinary · Resend**.
 Requisitos: Node 20+, Docker (para Postgres local).
 
 ```bash
+# 0. Dependencias (el postinstall corre `prisma generate`)
+npm install
+
 # 1. Variables de entorno
 cp .env.example .env        # y completá lo que necesites
 
@@ -45,7 +48,7 @@ npm run dev                 # http://localhost:3000
 | Script               | Descripción                             |
 | -------------------- | --------------------------------------- |
 | `npm run dev`        | Servidor de desarrollo                  |
-| `npm run build`      | Build de producción                     |
+| `npm run build`      | Build de producción (necesita `DATABASE_URL` con la base arriba: la home se prerenderiza leyendo el catálogo) |
 | `npm run typecheck`  | Chequeo de tipos                        |
 | `npm run db:up`      | Levanta Postgres (docker compose)       |
 | `npm run db:migrate` | Aplica migraciones de Prisma            |
